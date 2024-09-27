@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Define the Excel file path
-excel_file = "ZGC.xlsx"
+excel_file = "CNBS_FOEorigin_missing_1.xlsx"
 
 # Read the Excel file into a pandas DataFrame
 df = pd.read_excel(excel_file)
@@ -13,4 +13,4 @@ split_dfs = [
 
 # Save each split DataFrame into separate Excel files
 for i, split_df in enumerate(split_dfs):
-    split_df.to_excel(f"split/ZGC_{i+1}.xlsx", index=False, engine="xlsxwriter")
+    split_df.to_excel(f"split/CNBS_FOEorigin_missing_1_{i+1}.xlsx", index=False, engine="xlsxwriter")

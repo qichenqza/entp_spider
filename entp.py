@@ -4,6 +4,7 @@
 # require python <= 3.9
 
 import json
+import re
 import time
 from urllib.parse import parse_qs, urlparse
 
@@ -105,10 +106,10 @@ class EntpReader:
             http_result = []
 
             if not pd.isnull(row[0]):
-                http_result = search_entp(session, str(row[0]).replace("-", ""))
+                http_result = search_entp(session, str(row[0]))
 
             if not http_result and not pd.isnull(row[1]):
-                http_result = search_entp(session, full2half(str(row[1])))
+                http_result = search_entp(session, str(row[1]))
 
             if not http_result:
                 skiped_row_idx.append(idx)
@@ -155,8 +156,27 @@ def full2half(s: str):
     return "".join(n).replace(" ", "")
 
 
+def is_contain_chinese(text: str):
+    pattern = re.compile(r"[\u4e00-\u9fa5]")
+    match = re.search(pattern, text)
+    if match:
+        return True
+    return False
+
+
 def search_entp(http_session: requests.Session, key_word: str):
     unix_timestamp = int(time.time() * 1000)
+
+    key_word = full2half(key_word)
+    if is_contain_chinese(key_word):
+        # key word is company name
+        key_word = key_word.split("-", maxsplit=1)[-1]
+    else:
+        # key word is company id
+        key_word = key_word.replace("-", "")
+
+    if not key_word:
+        return None
 
     for _ in range(5):
         try:
@@ -230,38 +250,47 @@ def get_entp_detail(http_session: requests.Session, entp_id: str, token: str):
     detail_res_info = detail_res_data["data"]["wzResult"]
     detail_res_info["ENTP_ID"] = entp_id
     detail_res_info["TOKEN"] = token
+
+    detail_res_info["SHUTDOWN_ITEM"] = ""
+    detail_res_info["SHUTDOWN_DATE"] = ""
+    for item in detail_res_data["data"]["entpAlterList"]:
+        if item["ALTITEM"] in ["注销", "吊销", "责令关闭", "迁出", "除名"]:
+            detail_res_info["SHUTDOWN_ITEM"] = item["ALTITEM"]
+            detail_res_info["SHUTDOWN_DATE"] = item["ALTDATE"]
+            break
+
     detail_res_info["INVESTOR_NUM"] = len(detail_res_data["data"]["investorResult"])
+    # there is no investor area info in data
+    # detail_res_info["INVESTOR_NUM_CHINA"] = 0
+    # detail_res_info["INVESTOR_NUM_HONGKONG"] = 0
+    # detail_res_info["INVESTOR_NUM_MACAO"] = 0
+    # detail_res_info["INVESTOR_NUM_TAIWAN"] = 0
+    # detail_res_info["INVESTOR_NUM_OTHERS"] = 0
 
-    detail_res_info["INVESTOR_NUM_CHINA"] = 0
-    detail_res_info["INVESTOR_NUM_HONGKONG"] = 0
-    detail_res_info["INVESTOR_NUM_MACAO"] = 0
-    detail_res_info["INVESTOR_NUM_TAIWAN"] = 0
-    detail_res_info["INVESTOR_NUM_OTHERS"] = 0
-
-    detail_res_info["INVESTOR_CAPITAL_CHINA"] = 0
-    detail_res_info["INVESTOR_CAPITAL_HONGKONG"] = 0
-    detail_res_info["INVESTOR_CAPITAL_MACAO"] = 0
-    detail_res_info["INVESTOR_CAPITAL_TAIWAN"] = 0
-    detail_res_info["INVESTOR_CAPITAL_OTHERS"] = 0
+    # detail_res_info["INVESTOR_CAPITAL_CHINA"] = 0
+    # detail_res_info["INVESTOR_CAPITAL_HONGKONG"] = 0
+    # detail_res_info["INVESTOR_CAPITAL_MACAO"] = 0
+    # detail_res_info["INVESTOR_CAPITAL_TAIWAN"] = 0
+    # detail_res_info["INVESTOR_CAPITAL_OTHERS"] = 0
 
     for idx, item in enumerate(detail_res_data["data"]["investorResult"]):
-        if item["COUNTRYNAME"] == "中国":
-            detail_res_info["INVESTOR_NUM_CHINA"] += 1
-            detail_res_info["INVESTOR_CAPITAL_CHINA"] += float(item["CAPITAL_AMOUNT"])
-        elif item["COUNTRYNAME"] == "香港地区":
-            detail_res_info["INVESTOR_NUM_HONGKONG"] += 1
-            detail_res_info["INVESTOR_CAPITAL_HONGKONG"] += float(
-                item["CAPITAL_AMOUNT"]
-            )
-        elif item["COUNTRYNAME"] == "澳门地区":
-            detail_res_info["INVESTOR_NUM_MACAO"] += 1
-            detail_res_info["INVESTOR_CAPITAL_MACAO"] += float(item["CAPITAL_AMOUNT"])
-        elif item["COUNTRYNAME"] == "台湾地区":
-            detail_res_info["INVESTOR_NUM_TAIWAN"] += 1
-            detail_res_info["INVESTOR_CAPITAL_TAIWAN"] += float(item["CAPITAL_AMOUNT"])
-        else:
-            detail_res_info["INVESTOR_NUM_OTHERS"] += 1
-            detail_res_info["INVESTOR_CAPITAL_OTHERS"] += float(item["CAPITAL_AMOUNT"])
+        # if item["COUNTRYNAME"] == "中国":
+        #     detail_res_info["INVESTOR_NUM_CHINA"] += 1
+        #     detail_res_info["INVESTOR_CAPITAL_CHINA"] += float(item["CAPITAL_AMOUNT"])
+        # elif item["COUNTRYNAME"] == "香港地区":
+        #     detail_res_info["INVESTOR_NUM_HONGKONG"] += 1
+        #     detail_res_info["INVESTOR_CAPITAL_HONGKONG"] += float(
+        #         item["CAPITAL_AMOUNT"]
+        #     )
+        # elif item["COUNTRYNAME"] == "澳门地区":
+        #     detail_res_info["INVESTOR_NUM_MACAO"] += 1
+        #     detail_res_info["INVESTOR_CAPITAL_MACAO"] += float(item["CAPITAL_AMOUNT"])
+        # elif item["COUNTRYNAME"] == "台湾地区":
+        #     detail_res_info["INVESTOR_NUM_TAIWAN"] += 1
+        #     detail_res_info["INVESTOR_CAPITAL_TAIWAN"] += float(item["CAPITAL_AMOUNT"])
+        # else:
+        #     detail_res_info["INVESTOR_NUM_OTHERS"] += 1
+        #     detail_res_info["INVESTOR_CAPITAL_OTHERS"] += float(item["CAPITAL_AMOUNT"])
 
         for key in item:
             detail_res_info[f"{key}_{idx}"] = item[key]
